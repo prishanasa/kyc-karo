@@ -4,11 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Shield, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Submission {
-  id: string;
+  id: number;
   end_user_email: string;
   status: string;
   id_image_url: string | null;
@@ -42,13 +42,24 @@ const SubmissionDetail = () => {
 
   const fetchSubmission = async () => {
     try {
+      const numericId = parseInt(id || "0", 10);
       const { data, error } = await supabase
         .from("submissions")
         .select("*")
-        .eq("id", id)
-        .single();
+        .eq("id", numericId)
+        .maybeSingle();
 
       if (error) throw error;
+
+      if (!data) {
+        toast({
+          title: "Not Found",
+          description: "Submission not found",
+          variant: "destructive",
+        });
+        navigate("/dashboard");
+        return;
+      }
 
       setSubmission(data);
     } catch (error: any) {
@@ -68,10 +79,11 @@ const SubmissionDetail = () => {
 
     setUpdating(true);
     try {
+      const numericId = parseInt(id, 10);
       const { error } = await supabase
         .from("submissions")
         .update({ status: newStatus })
-        .eq("id", id);
+        .eq("id", numericId);
 
       if (error) throw error;
 
@@ -129,140 +141,150 @@ const SubmissionDetail = () => {
             variant="ghost"
             size="sm"
             onClick={() => navigate("/dashboard")}
-            className="mb-2"
+            className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">Submission Details</h1>
-              <p className="text-sm text-muted-foreground">{submission.end_user_email}</p>
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-gradient-to-br from-blue-500 to-green-500 p-2">
+              <Shield className="h-6 w-6 text-white" />
             </div>
-            <Badge className={getStatusColor(submission.status)}>{submission.status}</Badge>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">KYC-Karo</h1>
+              <p className="text-sm text-muted-foreground">Submission Review</p>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Images */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Verification Images</CardTitle>
-            <CardDescription>ID document and selfie comparison</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h3 className="font-semibold text-sm text-muted-foreground">ID Document</h3>
-                {submission.id_image_url ? (
-                  <img
-                    src={submission.id_image_url}
-                    alt="ID Document"
-                    className="w-full rounded-lg border bg-muted aspect-[4/3] object-cover"
-                  />
-                ) : (
-                  <div className="w-full rounded-lg border bg-muted aspect-[4/3] flex items-center justify-center text-muted-foreground">
-                    No ID image available
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-sm text-muted-foreground">Selfie</h3>
-                {submission.selfie_image_url ? (
-                  <img
-                    src={submission.selfie_image_url}
-                    alt="Selfie"
-                    className="w-full rounded-lg border bg-muted aspect-[4/3] object-cover"
-                  />
-                ) : (
-                  <div className="w-full rounded-lg border bg-muted aspect-[4/3] flex items-center justify-center text-muted-foreground">
-                    No selfie available
-                  </div>
-                )}
-              </div>
+      <main className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold">Submission #{submission.id}</h2>
+              <p className="text-muted-foreground mt-1">
+                Submitted by {submission.end_user_email} on{" "}
+                {new Date(submission.submitted_at).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <Badge className={getStatusColor(submission.status)}>
+              {submission.status}
+            </Badge>
+          </div>
 
-        {/* Extracted Data */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Extracted Data</CardTitle>
-            <CardDescription>Information extracted from ID document</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {Object.keys(submission.extracted_data).length > 0 ? (
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(submission.extracted_data).map(([key, value]) => (
-                  <div key={key} className="space-y-1">
-                    <dt className="text-sm font-medium text-muted-foreground capitalize">
-                      {key.replace(/_/g, " ")}
-                    </dt>
-                    <dd className="text-sm font-semibold">{String(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-sm text-muted-foreground">No extracted data available</p>
-            )}
-          </CardContent>
-        </Card>
+          <div className="flex gap-4">
+            <Button
+              onClick={() => updateStatus("approved")}
+              disabled={updating}
+              size="lg"
+              className="flex-1"
+            >
+              <CheckCircle className="h-5 w-5 mr-2" />
+              Approve
+            </Button>
+            <Button
+              onClick={() => updateStatus("rejected")}
+              disabled={updating}
+              size="lg"
+              variant="destructive"
+              className="flex-1"
+            >
+              <XCircle className="h-5 w-5 mr-2" />
+              Reject
+            </Button>
+          </div>
 
-        {/* AI Scores */}
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Verification Scores</CardTitle>
-            <CardDescription>Automated verification analysis</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {Object.keys(submission.ai_scores).length > 0 ? (
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(submission.ai_scores).map(([key, value]) => (
-                  <div key={key} className="space-y-1">
-                    <dt className="text-sm font-medium text-muted-foreground capitalize">
-                      {key.replace(/_/g, " ")}
-                    </dt>
-                    <dd className="text-sm font-semibold">
-                      {typeof value === "number" ? `${value}%` : String(value)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
-              <p className="text-sm text-muted-foreground">No AI scores available</p>
-            )}
-          </CardContent>
-        </Card>
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>ID Document</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {submission.id_image_url ? (
+                    <img
+                      src={submission.id_image_url}
+                      alt="ID Document"
+                      className="w-full rounded-lg border"
+                    />
+                  ) : (
+                    <div className="w-full h-64 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                      No ID image uploaded
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-        {/* Action Buttons */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Review Actions</CardTitle>
-            <CardDescription>Approve or reject this submission</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <Button
-                onClick={() => updateStatus("approved")}
-                disabled={updating || submission.status === "approved"}
-                className="flex-1 bg-accent hover:bg-accent/90"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Approve
-              </Button>
-              <Button
-                onClick={() => updateStatus("rejected")}
-                disabled={updating || submission.status === "rejected"}
-                variant="destructive"
-                className="flex-1"
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Reject
-              </Button>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Selfie Photo</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {submission.selfie_image_url ? (
+                    <img
+                      src={submission.selfie_image_url}
+                      alt="Selfie"
+                      className="w-full rounded-lg border"
+                    />
+                  ) : (
+                    <div className="w-full h-64 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                      No selfie image uploaded
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Verification Details</CardTitle>
+                <CardDescription>AI analysis and extracted information</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">AI Scores</h3>
+                  <div className="space-y-3">
+                    {submission.ai_scores && Object.keys(submission.ai_scores).length > 0 ? (
+                      Object.entries(submission.ai_scores).map(([key, value]) => (
+                        <div key={key} className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
+                          <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
+                          <span className="font-bold text-lg">
+                            {typeof value === "number" ? `${value}%` : String(value)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground">No AI scores available</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-lg mb-3">Extracted Data</h3>
+                  <div className="space-y-3">
+                    {submission.extracted_data && Object.keys(submission.extracted_data).length > 0 ? (
+                      Object.entries(submission.extracted_data).map(([key, value]) => (
+                        <div key={key} className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
+                          <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
+                          <span className="font-semibold">{String(value)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground">No extracted data available</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </main>
     </div>
   );

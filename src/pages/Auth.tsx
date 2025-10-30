@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { Shield } from "lucide-react";
 
@@ -12,21 +13,42 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"user" | "admin">("user");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if user is already logged in
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        navigate("/dashboard");
+        // Fetch user role and redirect accordingly
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (roleData?.role === "admin") {
+          navigate("/dashboard");
+        } else {
+          navigate("/apply");
+        }
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
-        navigate("/dashboard");
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (roleData?.role === "admin") {
+          navigate("/dashboard");
+        } else {
+          navigate("/apply");
+        }
       }
     });
 
@@ -55,7 +77,10 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
+            emailRedirectTo: `${window.location.origin}/apply`,
+            data: {
+              role: role,
+            },
           },
         });
 
@@ -79,17 +104,22 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-primary/10 p-3">
-              <Shield className="h-8 w-8 text-primary" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-blue-600 to-green-500 p-4">
+      <Card className="w-full max-w-md shadow-2xl">
+        <CardHeader className="space-y-3 text-center">
+          <div className="flex justify-center mb-2">
+            <div className="rounded-full bg-primary p-4 shadow-lg">
+              <Shield className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">KYCkaro</CardTitle>
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+            KYC-Karo
+          </CardTitle>
+          <p className="text-lg font-semibold text-muted-foreground">
+            KYC Made Easy. From Days to Minutes.
+          </p>
           <CardDescription>
-            {isLogin ? "Sign in to your admin account" : "Create a new admin account"}
+            {isLogin ? "Sign in to your account" : "Create your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -99,7 +129,7 @@ const Auth = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@kyckaro.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -116,6 +146,25 @@ const Auth = () => {
                 required
               />
             </div>
+            {!isLogin && (
+              <div className="space-y-3">
+                <Label>I am...</Label>
+                <RadioGroup value={role} onValueChange={(value) => setRole(value as "user" | "admin")}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="user" id="user" />
+                    <Label htmlFor="user" className="font-normal cursor-pointer">
+                      Submitting my documents
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="admin" id="admin" />
+                    <Label htmlFor="admin" className="font-normal cursor-pointer">
+                      A business admin
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
             </Button>
@@ -124,7 +173,7 @@ const Auth = () => {
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline"
+              className="text-primary hover:underline font-medium"
             >
               {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
             </button>
